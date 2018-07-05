@@ -1,7 +1,7 @@
 #ifndef CPUUSAGEVISUALIZER_H
 #define CPUUSAGEVISUALIZER_H
 
-#include <QObject>
+#include <QThread>
 #include <QColor>
 
 #include <windows.h>
@@ -10,7 +10,7 @@ class QTimer;
 class QSerialPort;
 class QMutex;
 
-class CpuUsageVisualizer : public QObject
+class CpuUsageVisualizer : public QThread
 {
     Q_OBJECT
     Q_PROPERTY(QString portName READ portName WRITE setPortName NOTIFY portNameChanged)
@@ -20,18 +20,16 @@ public:
     const QString &portName() const;
 
 public slots:
-    void start();
-    void stop();
     void setPortName(const QString &portName);
 
 signals:
     void portNameChanged(QString portName);
 
 protected:
-    void updateColor();
+    void run();
 
 protected slots:
-    void timeout();
+    void updateColor();
 
 private:
     unsigned long long FileTimeToInt64(const FILETIME & ft);
@@ -40,7 +38,6 @@ private:
     QColor colorByPercent(double cpuUsagePercent);
 
     QSerialPort *m_serialPort;
-    QTimer *m_updateTimer;
     QMutex *m_mutex;
     QString m_portName;
 

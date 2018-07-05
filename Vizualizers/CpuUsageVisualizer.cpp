@@ -1,40 +1,20 @@
 #include "CpuUsageVisualizer.h"
 #include <QSerialPort>
 #include <QTimer>
-#include <QtConcurrent>
-#include <QEventLoop>
+#include <QElapsedTimer>
 #include <QThread>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QDataStream>
+
+#include <QDebug>
 
 CpuUsageVisualizer::CpuUsageVisualizer(QObject *parent) :
-    QObject(parent)
+    QThread(parent)
 {
-    m_updateTimer = new QTimer(this);
-    m_updateTimer->setInterval(3000);
 
-    m_serialPort = new QSerialPort();
-    m_serialPort->setBaudRate(9600);
-    m_serialPort->setDataBits(QSerialPort::Data8);
-    m_serialPort->setParity(QSerialPort::NoParity);
-    m_serialPort->setStopBits(QSerialPort::OneStop);
-    m_serialPort->setFlowControl(QSerialPort::NoFlowControl);
-
-    m_mutex = new QMutex();
-
-    connect(m_updateTimer, SIGNAL(timeout()),
-            this, SLOT(timeout()));
 }
 
-void CpuUsageVisualizer::start()
-{
-    m_updateTimer->start();
-}
-
-void CpuUsageVisualizer::stop()
-{
-    m_updateTimer->stop();
-}
 
 const QString &CpuUsageVisualizer::portName() const
 {
@@ -75,7 +55,7 @@ void CpuUsageVisualizer::updateColor()
         {
             // Вызывать сигнал с ошибкой
             qWarning() << m_serialPort->errorString();
-            stop();
+            quit();
             return;
         }
     }
@@ -114,21 +94,35 @@ void CpuUsageVisualizer::updateColor()
     qWarning() << "elapsed3:" << timer.elapsed();
 }
 
-void CpuUsageVisualizer::timeout()
+void CpuUsageVisualizer::run()
 {
-    updateColor();
+    m_mutex = new QMutex();
+
+    m_serialPort = new QSerialPort();
+    m_serialPort->setBaudRate(9600);
+    m_serialPort->setDataBits(QSerialPort::Data8);
+    m_serialPort->setParity(QSerialPort::NoParity);
+    m_serialPort->setStopBits(QSerialPort::OneStop);
+    m_serialPort->setFlowControl(QSerialPort::NoFlowControl);
+
+    QTimer timer;
+    connect(&timer, SIGNAL(timeout()), this, SLOT(updateColor()), Qt::DirectConnection);
+    timer.setInterval(300);
+    timer.start();
+    exec();
+    timer.stop();
 }
 
 unsigned long long CpuUsageVisualizer::FileTimeToInt64(const FILETIME &ft)
 {
-    return (((unsigned long long)(ft.dwHighDateTime))<<32)|((unsigned long long)ft.dwLowDateTime);
+    return (((quint64)ft.dwHighDateTime) << 32) | ((quint64)ft.dwLowDateTime);
 }
 
 
 int CpuUsageVisualizer::fetchCpuPercentUsage()
 {
     FILETIME idleTime, kernelTime, userTime;
-    qWarning() << GetSystemTimes(&idleTime, &kernelTime, &userTime);
+
     if(GetSystemTimes(&idleTime, &kernelTime, &userTime))
     {
         const quint64 idleTicks = FileTimeToInt64(idleTime);
@@ -140,9 +134,9 @@ int CpuUsageVisualizer::fetchCpuPercentUsage()
         m_previousTotalTicks = totalTicks;
         m_previousIdleTicks  = idleTicks;
 
-
         return (totalTicksSinceLastTime - idleTicksSinceLastTime) * 100.0 / totalTicksSinceLastTime;
     }
+
     return 0;
 }
 

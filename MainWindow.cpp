@@ -30,6 +30,7 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     m_cpuUsageVisualizer = new CpuUsageVisualizer(this);
+    m_cpuUsageVisualizer->setPortName(m_portsSelect->itemData(0).toString());
 
     connect(m_portsSelect, SIGNAL(currentIndexChanged(int)),
             this, SLOT(portChanged(int)));
@@ -40,7 +41,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-
+    m_cpuUsageVisualizer->quit();
+    m_cpuUsageVisualizer->wait();
 }
 
 void MainWindow::portChanged(const int index)
